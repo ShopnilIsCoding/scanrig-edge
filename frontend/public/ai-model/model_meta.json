@@ -1,0 +1,44 @@
+{
+  "sequenceLength": 48,
+  "featureCount": 132,
+  "sampleHz": 12,
+  "threshold": 0.72,
+  "margin": 0.12,
+  "testAccuracy": 1.0,
+  "testLoss": 0.006223792675882578,
+  "classes": [
+    "jumping-jack",
+    "high-knees",
+    "biceps-curl",
+    "squat",
+    "shoulder-press",
+    "push-up",
+    "lunge",
+    "crunch",
+    "plank",
+    "unknown"
+  ],
+  "classCount": 10,
+  "classCounts": {
+    "jumping-jack": 201,
+    "high-knees": 200,
+    "biceps-curl": 205,
+    "squat": 201,
+    "shoulder-press": 200,
+    "push-up": 200,
+    "lunge": 200,
+    "crunch": 200,
+    "plank": 200,
+    "unknown": 400
+  },
+  "datasetSamples": 2207,
+  "trainSamples": 1528,
+  "validationSamples": 290,
+  "testSamples": 389,
+  "sourceCounts": {
+    "admin-real": 7,
+    "synthetic": 2200
+  },
+  "splitMode": "participant-disjoint",
+  "trainedAt": "2026-08-20T08:34:00.770429+00:00"
+}

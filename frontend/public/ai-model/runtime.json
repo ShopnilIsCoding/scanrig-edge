@@ -1,0 +1,16 @@
+{
+  "format": "onnx",
+  "runtime": "onnxruntime-web",
+  "opset": 18,
+  "inputName": "pose_sequence",
+  "outputName": "Identity:0",
+  "inputShape": [
+    1,
+    48,
+    132
+  ],
+  "maxParityDifference": 1.1920928955078125e-07,
+  "modelVersion": "8812cd8cfb3ce1ba",
+  "sha256": "8812cd8cfb3ce1ba64ecf9c775350d5ee9a5d158fbf71ae0ba483aaee8b5435c",
+  "exportedAt": "2026-08-20T08:34:14.783631+00:00"
+}
