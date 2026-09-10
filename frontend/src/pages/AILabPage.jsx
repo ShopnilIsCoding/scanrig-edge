@@ -92,6 +92,52 @@ export default function AILabPage() {
   const sessionIdRef = useRef(`admin-collector-${new Date().toISOString().slice(0, 10)}`);
   const classifier = useExerciseClassifier();
 
+
+  const effectiveModelStatus = useMemo(() => {
+    if (modelStatus.installed) return modelStatus;
+
+    // The production browser model is bundled with the frontend.
+    // If ONNX Runtime Web loaded it successfully, treat it as active even
+    // when the backend has no server-side training model installed.
+    if (classifier.status === 'ready') {
+      return {
+        installed: true,
+        modelVersion:
+          classifier.modelInfo?.version ||
+          classifier.modelInfo?.modelVersion ||
+          classifier.modelInfo?.modelHash ||
+          null,
+        exportedAt:
+          classifier.modelInfo?.exportedAt ||
+          classifier.modelInfo?.createdAt ||
+          null,
+        classCount:
+          classifier.modelInfo?.classCount ||
+          classifier.labels?.length ||
+          0,
+        labels: classifier.labels || [],
+        testAccuracy:
+          classifier.modelInfo?.testAccuracy ??
+          classifier.modelInfo?.accuracy ??
+          null,
+        splitMode:
+          classifier.modelInfo?.splitMode ||
+          classifier.modelInfo?.evaluationMode ||
+          null,
+        datasetSamples:
+          classifier.modelInfo?.datasetSamples ??
+          classifier.modelInfo?.samples ??
+          null,
+        sourceCounts: classifier.modelInfo?.sourceCounts || {},
+        maxParityDifference:
+          classifier.modelInfo?.maxParityDifference ??
+          classifier.modelInfo?.parityError ??
+          null,
+      };
+    }
+
+    return modelStatus;
+  }, [modelStatus, classifier.status, classifier.modelInfo, classifier.labels]);
   useEffect(() => {
     setTrainerPersona(participantGender === 'female' ? 'jody' : 'james');
   }, [participantGender]);
@@ -135,9 +181,10 @@ export default function AILabPage() {
     let timer;
     const poll = async () => {
       try {
-        const { job } = await getAITrainingStatus();
+        const response = await getAITrainingStatus();
+        const job = response?.job || response || { running: false, stage: 'idle', logs: [] };
         if (cancelled) return;
-        setTrainingJob(job || { running: false, stage: 'idle', logs: [] });
+        setTrainingJob(job);
         if (job?.running) timer = window.setTimeout(poll, 1800);
       } catch { /* collection still works without Python configured */ }
     };
@@ -298,11 +345,13 @@ export default function AILabPage() {
   const retrainModel = async () => {
     if (!window.confirm('Retrain ScanRig AI using the synthetic base plus APPROVED real samples, including eligible new exercise classes?')) return;
     try {
-      const { job } = await startAITraining();
+      const startResponse = await startAITraining();
+      const job = startResponse?.job || startResponse || { running: false, stage: 'idle', logs: [] };
       setTrainingJob(job);
       setMessage('Retraining started. New admin-created classes will be appended to the model when enough real samples exist.');
       const poll = async () => {
-        const { job: latest } = await getAITrainingStatus();
+        const statusResponse = await getAITrainingStatus();
+        const latest = statusResponse?.job || statusResponse || { running: false, stage: 'idle', logs: [] };
         setTrainingJob(latest);
         if (latest?.running) window.setTimeout(poll, 1800);
         else if (latest?.stage === 'ready') {
@@ -422,12 +471,12 @@ export default function AILabPage() {
       <section className="ai-model-deployment">
         <div className="ai-summary-heading"><BrainCircuit size={19} /><div><small>ACTIVE BROWSER MODEL</small><h2>ONNX deployment status</h2></div></div>
         <div className="ai-model-deployment-grid">
-          <article><small>STATUS</small><strong className={modelStatus.installed ? 'ready' : ''}>{modelStatus.installed ? 'ONNX ACTIVE' : 'MODEL MISSING'}</strong><span>{classifier.status === 'ready' ? 'Browser runtime connected' : classifier.status === 'loading' ? 'Loading browser runtime…' : 'Rule fallback active'}</span></article>
-          <article><small>MODEL VERSION</small><strong>{modelStatus.modelVersion ? String(modelStatus.modelVersion).slice(0, 12) : '—'}</strong><span>{modelStatus.exportedAt ? formatTime(modelStatus.exportedAt) : 'Train once to create a version'}</span></article>
-          <article><small>TRAINED CLASSES</small><strong>{modelStatus.classCount || 0}</strong><span>{(modelStatus.labels || []).slice(0, 3).map((label) => prettyLabel(label, names)).join(' · ') || 'No labels yet'}{(modelStatus.classCount || 0) > 3 ? ' …' : ''}</span></article>
-          <article><small>MODEL TEST</small><strong>{Number.isFinite(Number(modelStatus.testAccuracy)) ? `${Math.round(Number(modelStatus.testAccuracy) * 1000) / 10}%` : '—'}</strong><span>{modelStatus.splitMode ? String(modelStatus.splitMode).replaceAll('-', ' ') : 'No evaluation metadata'}</span></article>
-          <article><small>TRAINING DATA</small><strong>{modelStatus.datasetSamples ?? '—'}</strong><span>{Object.entries(modelStatus.sourceCounts || {}).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Legacy model metadata'}</span></article>
-          <article><small>EXPORT PARITY</small><strong>{modelStatus.maxParityDifference !== null && modelStatus.maxParityDifference !== undefined ? Number(modelStatus.maxParityDifference).toExponential(1) : '—'}</strong><span>Keras ↔ ONNX max difference</span></article>
+          <article><small>STATUS</small><strong className={effectiveModelStatus.installed ? 'ready' : ''}>{effectiveModelStatus.installed ? 'ONNX ACTIVE' : 'MODEL MISSING'}</strong><span>{classifier.status === 'ready' ? 'Browser runtime connected' : classifier.status === 'loading' ? 'Loading browser runtime…' : 'Rule fallback active'}</span></article>
+          <article><small>MODEL VERSION</small><strong>{effectiveModelStatus.modelVersion ? String(effectiveModelStatus.modelVersion).slice(0, 12) : '—'}</strong><span>{effectiveModelStatus.exportedAt ? formatTime(effectiveModelStatus.exportedAt) : (classifier.status === 'ready' ? 'Browser model loaded' : 'Train once to create a version')}</span></article>
+          <article><small>TRAINED CLASSES</small><strong>{effectiveModelStatus.classCount || 0}</strong><span>{(effectiveModelStatus.labels || []).slice(0, 3).map((label) => prettyLabel(label, names)).join(' · ') || 'No labels yet'}{(effectiveModelStatus.classCount || 0) > 3 ? ' …' : ''}</span></article>
+          <article><small>MODEL TEST</small><strong>{Number.isFinite(Number(effectiveModelStatus.testAccuracy)) ? `${Math.round(Number(effectiveModelStatus.testAccuracy) * 1000) / 10}%` : '—'}</strong><span>{effectiveModelStatus.splitMode ? String(effectiveModelStatus.splitMode).replaceAll('-', ' ') : 'No evaluation metadata'}</span></article>
+          <article><small>TRAINING DATA</small><strong>{effectiveModelStatus.datasetSamples ?? '—'}</strong><span>{Object.entries(effectiveModelStatus.sourceCounts || {}).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Legacy model metadata'}</span></article>
+          <article><small>EXPORT PARITY</small><strong>{effectiveModelStatus.maxParityDifference !== null && effectiveModelStatus.maxParityDifference !== undefined ? Number(effectiveModelStatus.maxParityDifference).toExponential(1) : '—'}</strong><span>Keras ↔ ONNX max difference</span></article>
         </div>
       </section>
 
